@@ -1,0 +1,7 @@
+streamlit
+pandas
+pytrends
+requests
+pillow
+numpy
+openai
