@@ -5,3 +5,6 @@ requests
 pillow
 numpy
 openai
+streamlit
+pillow
+openai
