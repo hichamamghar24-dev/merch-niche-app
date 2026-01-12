@@ -181,3 +181,59 @@ st.markdown("""
 
 st.markdown("[👕 Placeit](https://placeit.net)")
 st.markdown("[👕 Printify Mockup](https://www.printify.com/mockup-generator/)")
+import streamlit as st
+from PIL import Image
+import openai
+import io
+
+st.markdown("---")
+st.header("👕 Analyse d’image de T-shirt (Mode PRO SEO)")
+
+uploaded_image = st.file_uploader(
+    "📤 Téléverse une image de t-shirt (PNG ou JPG)",
+    type=["png", "jpg", "jpeg"]
+)
+
+if uploaded_image:
+    image = Image.open(uploaded_image)
+    st.image(image, caption="Image analysée", use_column_width=True)
+
+    st.info("🧠 Analyse IA en cours...")
+
+    try:
+        prompt = """
+Tu es un expert SEO Merch by Amazon.
+Analyse ce design de t-shirt et fournis :
+
+1. 5 niches possibles
+2. 10 mots-clés SEO (anglais, Merch by Amazon)
+3. Le type de client (ex: gift, humor, passion, job, hobby)
+4. Un prompt DALL·E pour créer un design similaire MAIS ORIGINAL (pas de copie)
+
+Réponds de manière structurée.
+"""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Tu es un expert Merch by Amazon et SEO."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7
+        )
+
+        result = response.choices[0].message.content
+
+        st.success("✅ Analyse terminée")
+        st.markdown(result)
+
+        st.download_button(
+            label="📥 Télécharger l’analyse",
+            data=result,
+            file_name="analyse_tshirt_seo.txt",
+            mime="text/plain"
+        )
+
+    except Exception as e:
+        st.error("Erreur IA. Vérifie ta clé OpenAI.")
+        st.write(e)
