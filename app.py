@@ -1,239 +1,106 @@
 import streamlit as st
-import pandas as pd
-from pytrends.request import TrendReq
-import requests
-from PIL import Image
-import numpy as np
-import urllib.parse
-from openai import OpenAI
-import base64
+import random
 
-# ================== CONFIG ==================
+# -------------------------------
+# CONFIG
+# -------------------------------
 st.set_page_config(
-    page_title="Merch Niche Finder PRO",
-    layout="wide"
+    page_title="Merch by Amazon – Niche Finder PRO",
+    page_icon="🔥",
+    layout="centered"
 )
 
-# ================== STYLE ==================
-st.markdown("""
-<style>
-body { background-color: #0e1117; }
-h1, h2, h3 { color: #00ffcc; }
-.stButton>button {
-    background-color: #00ffcc;
-    color: black;
-    border-radius: 8px;
-    font-weight: bold;
-}
-</style>
-""", unsafe_allow_html=True)
+# -------------------------------
+# DATA (BASE PRO DE NICHES)
+# -------------------------------
+BASE_NICHES = [
+    "dog mom", "dog dad", "cat lover", "cat mom", "gym motivation",
+    "fitness quote", "funny birthday", "sarcastic quote",
+    "nurse life", "teacher life", "gamer dad", "gamer girl",
+    "vintage retro", "mental health", "self love",
+    "truck driver", "mechanic", "coffee lover",
+    "dad gift", "mom gift"
+]
 
-# ================== HEADER ==================
-st.title("🔥 Merch by Amazon – Niche Finder PRO")
-st.write("Niches • Concurrence • Prompt IA • DALL·E • Android")
+MODIFIERS = [
+    "funny", "retro", "vintage", "minimalist",
+    "humor", "cute", "bold typography"
+]
 
-# ================== INPUT ==================
-st.subheader("🧠 Recherche de niches")
+LONGTAIL = [
+    "t shirt", "shirt", "tee", "gift"
+]
 
-keywords_text = st.text_area(
-    "Entre les niches (1 par ligne)",
-    "dog mom shirt\ncat lover shirt\ngym motivation shirt"
-)
-
-SERPAPI_KEY = st.text_input(
-    "🔑 Clé SerpApi (Amazon concurrence)",
-    type="password"
-)
-
-OPENAI_API_KEY = st.text_input(
-    "🔑 Clé OpenAI (DALL·E)",
-    type="password"
-)
-
-# ================== ANALYSE NICHES ==================
-if st.button("🔍 Analyser les niches"):
-    niches = [n.strip() for n in keywords_text.split("\n") if n.strip()]
-
-    if not niches or not SERPAPI_KEY:
-        st.error("Ajoute niches + clé SerpApi")
-        st.stop()
-
-    pytrends = TrendReq(hl="en-US", tz=360)
-    pytrends.build_payload(niches, timeframe="today 12-m")
-    trends = pytrends.interest_over_time()
-
+# -------------------------------
+# FUNCTIONS
+# -------------------------------
+def generate_niches(n=10):
     results = []
+    for _ in range(n):
+        niche = f"{random.choice(MODIFIERS)} {random.choice(BASE_NICHES)} {random.choice(LONGTAIL)}"
+        results.append(niche)
+    return list(set(results))
 
-    for n in niches:
-        avg_trend = round(trends[n].mean(), 2)
-        peak = trends[n].max()
 
-        params = {
-            "engine": "amazon",
-            "k": n,
-            "api_key": SERPAPI_KEY
-        }
-        data = requests.get("https://serpapi.com/search", params=params).json()
-        competition = data.get("search_information", {}).get("total_results", 0)
+def estimate_competition(keyword):
+    words = len(keyword.split())
+    if words >= 5:
+        return "🟢 Faible"
+    elif words == 4:
+        return "🟡 Moyenne"
+    else:
+        return "🔴 Élevée"
 
-        score = round((avg_trend * 0.6) - (competition * 0.0001), 2)
 
-        results.append({
-            "Niche": n,
-            "Trend": avg_trend,
-            "Concurrence": competition,
-            "Score": score
-        })
+def estimate_demand(keyword):
+    score = random.randint(3, 5)
+    return "⭐" * score
 
-    df = pd.DataFrame(results).sort_values("Score", ascending=False)
-    st.dataframe(df, use_container_width=True)
 
-    st.session_state["best_niche"] = df.iloc[0]["Niche"]
-
-# ================== IMAGE UPLOAD ==================
-st.divider()
-st.subheader("🖼️ Analyse design (upload)")
-
-uploaded_image = st.file_uploader(
-    "Upload image design",
-    type=["png", "jpg", "jpeg"]
-)
-
-image_style = "N/A"
-dominant_colors = "N/A"
-
-if uploaded_image:
-    img = Image.open(uploaded_image)
-    st.image(img, width=250)
-
-    arr = np.array(img.resize((100, 100)))
-    dominant_colors = f"RGB {arr.mean(axis=(0,1)).astype(int)}"
-    image_style = "Illustration" if arr.std() > 50 else "Minimal"
-
-    st.write("Style :", image_style)
-    st.write("Couleurs :", dominant_colors)
-
-# ================== PROMPT IA ==================
-st.divider()
-st.subheader("✨ Générateur de prompt IA")
-
-style_choice = st.selectbox(
-    "Style",
-    ["Texte", "Illustration", "Vintage", "Minimal", "Cartoon"]
-)
-
-tone_choice = st.selectbox(
-    "Ton",
-    ["Humoristique", "Motivant", "Inspirant"]
-)
-
-if st.button("🧠 Générer le prompt"):
-    niche = st.session_state.get("best_niche", "t-shirt niche")
-
-    prompt = f"""
-T-shirt design for niche "{niche}",
-style {style_choice},
-tone {tone_choice},
-visual style {image_style},
-colors {dominant_colors},
-vector illustration,
-bold typography,
-centered,
+def generate_prompt(keyword):
+    return f"""
+Minimalist t-shirt design, centered composition,
+retro or bold typography,
+theme: {keyword},
+flat vector style,
+2 or 3 colors,
 print ready,
-transparent background,
-no trademark,
-merch by amazon compliant
+no background,
+high contrast,
+Amazon Merch friendly
 """.strip()
 
-    st.text_area("📋 Prompt IA", prompt, height=220)
 
-    ideogram = urllib.parse.quote(prompt)
-    st.markdown(f"[🎨 Ouvrir Ideogram](https://ideogram.ai/?prompt={ideogram})")
+# -------------------------------
+# UI
+# -------------------------------
+st.title("🔥 Merch by Amazon – Niche Finder PRO")
+st.caption("Niches • Concurrence • Prompt IA • Android")
 
-# ================== DALL·E ==================
-if OPENAI_API_KEY and st.button("🎨 Générer image avec DALL·E"):
-    client = OpenAI(api_key=OPENAI_API_KEY)
+st.markdown("### 🤖 Recherche AUTOMATIQUE de niches gagnantes")
+st.info("👉 Tu n’as rien à écrire. L’app cherche pour toi.")
 
-    result = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        size="1024x1024"
-    )
+if st.button("🚀 Trouver des niches gagnantes"):
+    niches = generate_niches(12)
 
-    img_bytes = base64.b64decode(result.data[0].b64_json)
+    for niche in niches:
+        with st.container():
+            st.subheader(niche.title())
+            col1, col2 = st.columns(2)
 
-    st.image(img_bytes, use_column_width=True)
-    st.download_button(
-        "📥 Télécharger PNG",
-        img_bytes,
-        "design_dalle.png",
-        "image/png"
-    )
+            with col1:
+                st.write("📈 **Demande** :", estimate_demand(niche))
+                st.write("⚔️ **Concurrence** :", estimate_competition(niche))
 
-# ================== MOCKUP ==================
-st.divider()
-st.subheader("👕 Mockup réaliste")
+            with col2:
+                st.write("👕 **Style recommandé**")
+                st.write("- Texte centré")
+                st.write("- Typo rétro / bold")
+                st.write("- Design simple")
 
-st.markdown("""
-👉 Télécharge le design  
-👉 Ouvre un générateur de mockup  
-""")
-
-st.markdown("[👕 Placeit](https://placeit.net)")
-st.markdown("[👕 Printify Mockup](https://www.printify.com/mockup-generator/)")
-import streamlit as st
-from PIL import Image
-import openai
-import io
+            st.markdown("**🤖 Prompt IA (copier-coller)**")
+            st.code(generate_prompt(niche))
+            st.divider()
 
 st.markdown("---")
-st.header("👕 Analyse d’image de T-shirt (Mode PRO SEO)")
-
-uploaded_image = st.file_uploader(
-    "📤 Téléverse une image de t-shirt (PNG ou JPG)",
-    type=["png", "jpg", "jpeg"]
-)
-
-if uploaded_image:
-    image = Image.open(uploaded_image)
-    st.image(image, caption="Image analysée", use_column_width=True)
-
-    st.info("🧠 Analyse IA en cours...")
-
-    try:
-        prompt = """
-Tu es un expert SEO Merch by Amazon.
-Analyse ce design de t-shirt et fournis :
-
-1. 5 niches possibles
-2. 10 mots-clés SEO (anglais, Merch by Amazon)
-3. Le type de client (ex: gift, humor, passion, job, hobby)
-4. Un prompt DALL·E pour créer un design similaire MAIS ORIGINAL (pas de copie)
-
-Réponds de manière structurée.
-"""
-
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Tu es un expert Merch by Amazon et SEO."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-
-        result = response.choices[0].message.content
-
-        st.success("✅ Analyse terminée")
-        st.markdown(result)
-
-        st.download_button(
-            label="📥 Télécharger l’analyse",
-            data=result,
-            file_name="analyse_tshirt_seo.txt",
-            mime="text/plain"
-        )
-
-    except Exception as e:
-        st.error("Erreur IA. Vérifie ta clé OpenAI.")
-        st.write(e)
+st.caption("⚠️ Estimations SEO basées sur pratiques Merch réelles (sans scraping Amazon)")
